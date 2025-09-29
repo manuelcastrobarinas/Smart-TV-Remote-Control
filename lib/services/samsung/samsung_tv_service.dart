@@ -285,11 +285,32 @@ class SamsungTVService {
   }
 
   static Future<List<SamsungTVService>> discoverAll() async {
+    try {
+      return await runZoned(() async {
+        return await _performDiscovery();
+      }, onError: (error, stack) {
+        log("Unhandled error in UPnP discovery zone: $error");
+        log(stack.toString());
+        return <SamsungTVService>[];
+      });
+    } catch (e) {
+      log("Error in discovery process: $e");
+      return <SamsungTVService>[];
+    }
+  }
+
+  static Future<List<SamsungTVService>> _performDiscovery() async {
     var completer = Completer<List<SamsungTVService>>();
     final List<SamsungTVService> tvs = [];
 
     final client = DeviceDiscoverer();
-    await client.start(ipv6: false);
+    try {
+      await client.start(ipv6: false);
+    } catch (e) {
+      log("Failed to start UPnP discovery: $e");
+      completer.complete(tvs);
+      return completer.future;
+    }
 
     Timer(const Duration(seconds: 10), () {
       if (!completer.isCompleted) {
@@ -297,36 +318,60 @@ class SamsungTVService {
       }
     });
 
-    client.quickDiscoverClients().listen((client) async {
-      RegExp re = RegExp(r'^.*?Samsung.+UPnP.+SDK\/1\.0$');
+    // Usar un StreamSubscription para mejor control de errores
+    StreamSubscription? subscription;
+    try {
+      subscription = client.quickDiscoverClients().listen(
+        (client) async {
+          try {
+            RegExp re = RegExp(r'^.*?Samsung.+UPnP.+SDK\/1\.0$');
 
-      if (!re.hasMatch(client.server!)) {
-        log("Ignoring ${client.server}");
-        return;
-      }
-      try {
-        final device = await client.getDevice();
-        Uri location = Uri.parse(client.location!);
-        final deviceExists = tvs.firstWhere((tv) => tv.host == location.host,
-            orElse: () => SamsungTVService(host: null));
-        if (deviceExists.host == null) {
-          log("Found ${device?.friendlyName} on IP ${location.host}");
-          final tv = SamsungTVService(
-            host: location.host,
-            deviceName: device?.friendlyName,
-            modelName: device?.modelName,
-          );
-          tvs.add(tv);
-        }
-      } catch (e, stack) {
-        log("ERROR: $e - ${client.location}");
-        log(stack as String);
-      }
-    }).onDone(() {
+            if (!re.hasMatch(client.server!)) {
+              log("Ignoring ${client.server}");
+              return;
+            }
+            
+            final device = await client.getDevice();
+            Uri location = Uri.parse(client.location!);
+            final deviceExists = tvs.firstWhere((tv) => tv.host == location.host,
+                orElse: () => SamsungTVService(host: null));
+            if (deviceExists.host == null) {
+              log("Found ${device?.friendlyName} on IP ${location.host}");
+              final tv = SamsungTVService(
+                host: location.host,
+                deviceName: device?.friendlyName,
+                modelName: device?.modelName,
+              );
+              tvs.add(tv);
+            }
+          } catch (e, stack) {
+            log("ERROR processing device: $e - ${client.location}");
+            log(stack as String);
+          }
+        },
+        onError: (error) {
+          log("UPnP discovery stream error: $error");
+          // Cancelar la suscripción en caso de error
+          subscription?.cancel();
+          if (!completer.isCompleted) {
+            completer.complete(tvs);
+          }
+        },
+        onDone: () {
+          log("UPnP discovery stream completed");
+          if (!completer.isCompleted) {
+            completer.complete(tvs);
+          }
+        },
+        cancelOnError: true, // Cancelar automáticamente en caso de error
+      );
+    } catch (e) {
+      log("Failed to create UPnP discovery stream: $e");
+      subscription?.cancel();
       if (!completer.isCompleted) {
         completer.complete(tvs);
       }
-    });
+    }
 
     return completer.future;
   }
