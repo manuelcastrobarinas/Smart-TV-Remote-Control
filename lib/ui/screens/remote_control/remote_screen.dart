@@ -207,7 +207,6 @@ class _RemoteScreenState extends State<RemoteScreen> {
       }
     }
   }
-
   void _handleDisconnection(DisconnectionType disconnectionType) {
     log('_handleDisconnection called in UI with type: $disconnectionType');
     log('Widget mounted: $mounted');
@@ -291,103 +290,61 @@ class _RemoteScreenState extends State<RemoteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0XFF2e2e2e),
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                tv.deviceName ?? 'Control Remoto',
-                style: const TextStyle(color: Colors.white),
-              ),
+      backgroundColor: Colors.black,
+      appBar: ModernHeader(
+        tv: tv,
+        connectionStatus: _connectionStatus,
+        connectionColor: _getConnectionColor(),
+        connectionIcon: _getConnectionIcon(),
+        onBackPressed: () {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeviceSelectionScreen(),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: _getConnectionColor().withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _getConnectionColor(), width: 1),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _getConnectionIcon(),
-                    size: 12,
-                    color: _getConnectionColor(),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _connectionStatus,
-                    style: TextStyle(
-                      color: _getConnectionColor(),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const DeviceSelectionScreen(),
-              ),
-            );
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _connectToSelectedDevice,
-            tooltip: 'Reconectar',
-          ),
-        ],
+          );
+        },
+        onRefreshPressed: _connectToSelectedDevice,
+        onPowerPressed: _handlePowerButton,
       ),
       body: SafeArea(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PrimaryKeys(
-                connectTV: connectTV,
-                toggleKeypad: toggleKeypad,
-                handlePowerButton: _handlePowerButton,
-                keypadShown: _keypadShown,
-                isConnecting: _isConnecting,
-                connectionStatus: _connectionStatus,
-                tv: tv,
-              ),
-              const SizedBox(height: 50),
-              Visibility(
-                visible: _keypadShown,
-                child: NumPad(tv: tv),
-              ),
-              Visibility(
-                visible: !_keypadShown,
-                child: DirectionKeys(
+              StreamingAppsSection(tv: tv), //TODO: HACER LA PARTE DE STREAMING PARA QUITAR APLICACIONES Y AÑADIRLAS Y QUE REIRIJA A DICHA APLICACION SI ESTA EN EL TV
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: PrimaryKeys(
+                  onChangeDesing    : () => Navigator.push(context, MaterialPageRoute(builder: (context) => DeviceSelectionScreen())),
+                  toggleKeypad      : toggleKeypad,
+                  handlePowerButton : _handlePowerButton,
+                  keypadShown       : _keypadShown,
+                  isConnecting      : _isConnecting,
+                  connectionStatus  : _connectionStatus,
                   tv: tv,
                 ),
               ),
-              const SizedBox(height: 50),
-              ColorKeys(
-                tv: tv,
+              const SizedBox(height: 20),
+              Visibility(
+                visible: _keypadShown,
+                child: ModernNumericKeypad(tv: tv),
               ),
-              const SizedBox(height: 50),
-              VolumeChannelControls(
-                tv: tv,
+              Visibility(
+                visible: _keypadShown,
+                child: const SizedBox(height: 20)
               ),
-              const SizedBox(height: 50),
-              MediaControls(
+              // Panel de control
+              ModernControlPad(tv: tv, keypadShown: _keypadShown, toggleKeypad: toggleKeypad),
+              const Spacer(),
+              _AdditionalControlButtons(
                 tv: tv,
+                connectToSelectedDevice: _connectToSelectedDevice
               ),
             ],
           ),
@@ -395,4 +352,179 @@ class _RemoteScreenState extends State<RemoteScreen> {
       ),
     );
   }
+
 }
+
+
+class _AdditionalControlButtons extends StatelessWidget {
+  
+  final SamsungTV tv;
+  final Function() connectToSelectedDevice;
+
+  const _AdditionalControlButtons({
+    required this.tv,
+    required this.connectToSelectedDevice
+  });
+
+  Widget _buildAdditionalControlButton(String label, IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF3A3A3C),
+            width: 0.5,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showColorControls({required BuildContext context}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Controles de Color',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ColorKeys(tv: tv),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMediaControls({required BuildContext context}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Controles de Medios',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            MediaControls(tv: tv),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSettings({required BuildContext context, required Function() connectToSelectedDevice}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Configuración',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Icon(Icons.refresh, color: Colors.white),
+              title: Text('Reconectar TV', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                connectToSelectedDevice();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.devices, color: Colors.white),
+              title: Text('Cambiar Dispositivo', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DeviceSelectionScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return  Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        // Botón para mostrar controles de color
+        _buildAdditionalControlButton('Colores', Icons.palette, () => _showColorControls(context: context)),  
+        // Botón para controles de medios
+        _buildAdditionalControlButton('Medios', Icons.play_circle_fill, () => _showMediaControls(context: context)),
+        // Botón para configuración
+        _buildAdditionalControlButton('Config', Icons.settings, () => _showSettings(context: context, connectToSelectedDevice: connectToSelectedDevice)),
+      ],
+    );
+  }
+}
+
