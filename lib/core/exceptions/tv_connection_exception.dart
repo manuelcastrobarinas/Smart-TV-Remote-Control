@@ -53,4 +53,3 @@ class TVTimeoutException extends TVConnectionException {
     String? deviceName,
   }) : super(message, deviceHost: deviceHost, deviceName: deviceName);
 }
-

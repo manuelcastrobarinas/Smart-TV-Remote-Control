@@ -50,4 +50,3 @@ class TVDevice {
   @override
   int get hashCode => host.hashCode ^ mac.hashCode;
 }
-

@@ -38,4 +38,3 @@ class DiscoveryTimeoutException extends DeviceDiscoveryException {
     'Timeout durante el descubrimiento de dispositivos'
   );
 }
-
